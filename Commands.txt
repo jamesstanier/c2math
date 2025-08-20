@@ -1,0 +1,15 @@
+mkdir -p build && cd build
+cmake -DLLVM_DIR=/usr/lib/llvm-18/lib/cmake/llvm -DClang_DIR=/usr/lib/llvm-18/lib/cmake/clang ..
+cmake --build . --config Release
+
+sudo apt-get install zlib
+sudo apt install zlib1g-dev
+sudo apt install libzstd-dev
+sudo apt install gdb
+
+./c2ast ../tests/sum_of_digits.c
+./c2ast  --warnings-as-errors ../tests/sum_of_digits.c
+./c2ast ../tests/sum_of_digits.c -- -x c -std=c11
+
+cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
