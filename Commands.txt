@@ -10,6 +10,7 @@ sudo apt install gdb
 ./c2ast ../tests/sum_of_digits.c
 ./c2ast  --warnings-as-errors ../tests/sum_of_digits.c
 ./c2ast ../tests/sum_of_digits.c -- -x c -std=c11
+./c2ast --dump-syms ../tests/test.c -- -x c -std=c11
 
 cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 

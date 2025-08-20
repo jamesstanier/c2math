@@ -9,7 +9,7 @@
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/build/c2ast",
-      "args": ["${workspaceFolder}/tests/sum_of_digits.c", "--", "-x", "c", "-std=c11"],
+      "args": ["--dump-syms", "${workspaceFolder}/tests/test.c", "--", "-x", "c", "-std=c11"],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}",
       "environment": [],

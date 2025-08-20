@@ -18,6 +18,9 @@
 #include "clang/Basic/Version.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/ASTContext.h"
+
+#include "symbol_table.hpp"
 
 using namespace clang;
 using namespace clang::tooling;
@@ -34,6 +37,12 @@ static cl::opt<std::string> StdOpt(
     "std",
     cl::desc("C language standard (e.g., c11, c17). If omitted, use compile_commands.json or default toolchain."),
     cl::value_desc("c-standard"), cl::cat(C2ASTCat));
+
+static cl::opt<bool> DumpSyms(
+  "dump-syms",
+  cl::desc("Print the built symbol table and resolved uses (FR-002)"),
+  cl::cat(C2ASTCat), cl::init(false)
+);
 
 // ---- Diagnostic consumer that prints file:line:col and counts severities -----
 class CollectingDiagConsumer : public DiagnosticConsumer {
@@ -89,11 +98,18 @@ public:
     // If you need an ASTContext reference, you can access it here:
     // ASTContext &Ctx = getCompilerInstance().getASTContext();
     // For FR-001 we just ensure the TU was parsed successfully.
-    SyntaxOnlyAction::EndSourceFileAction();
+    ASTContext &Ctx = getCompilerInstance().getASTContext();
+    clang::TranslationUnitDecl* TU = Ctx.getTranslationUnitDecl();
 
-    //ASTContext &Ctx = getCompilerInstance().getASTContext();
-    //TranslationUnitDecl *TU = Ctx.getTranslationUnitDecl();
-    //TU->dump();  // Dump raw Clang AST to stdout
+    c2ast::SymTab ST;
+    c2ast::SymbolTableBuilder B(Ctx, ST);
+    B.build(TU);
+
+    if (DumpSyms) {
+      B.dump(llvm::outs());
+    }
+
+    SyntaxOnlyAction::EndSourceFileAction();
   }
 };
 
