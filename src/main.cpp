@@ -24,6 +24,7 @@
 #include "symbol_table.hpp"
 #include "ir.hpp"
 #include "ir_builder.hpp"
+#include "json_exporter.hpp"
 
 using namespace clang;
 using namespace clang::tooling;
@@ -50,6 +51,12 @@ static cl::opt<bool> DumpSyms(
 static cl::opt<bool> DumpIR(
   "dump-ir",
   cl::desc("Print lowered IR (FR-003)"),
+  cl::cat(C2ASTCat), cl::init(false)
+);
+
+static cl::opt<bool> DumpJSON(
+  "dump-json",
+  cl::desc("Print IR as JSON (FR-004)"),
   cl::cat(C2ASTCat), cl::init(false)
 );
 
@@ -130,13 +137,20 @@ public:
       llvm::outs() << oss.str();
     }
 
+    if (DumpJSON) {
+      c2json::write_module_json(M, std::cout);
+      std::cout << std::endl;
+    }
+
     SyntaxOnlyAction::EndSourceFileAction();
   }
 };
 
 int main(int argc, const char **argv) {
   // Print header for traceability (optional)
-  llvm::outs() << "c2ast (Clang " << getClangFullVersion() << ")\n";
+  if (!DumpJSON) {
+    //llvm::outs() << "c2math (Clang " << getClangFullVersion() << ")\n";
+  }
 
   auto ExpectedParser = CommonOptionsParser::create(argc, argv, C2ASTCat, cl::OneOrMore);
   
@@ -176,8 +190,11 @@ int main(int argc, const char **argv) {
   }
 
   // Success path
-  llvm::outs() << "Parsed " << Options.getSourcePathList().size()
-               << " file(s) successfully.\n";
+  if (!DumpJSON) {
+    llvm::outs() << "c2math (Clang " << getClangFullVersion() << ")\n";
+    llvm::outs() << "Parsed " << Options.getSourcePathList().size()
+                 << " file(s) successfully.\n";
+  }
   return 0;
 }
 

@@ -1,0 +1,69 @@
+{
+  "decls": [
+    {
+      "body": 1,
+      "id": 0,
+      "kind": "func",
+      "linkage": "external",
+      "name": "forty_two",
+      "params": [],
+      "type": 6
+    }
+  ],
+  "exprs": [
+    {
+      "id": 0,
+      "kind": "int_lit",
+      "type": 1,
+      "value": 42
+    }
+  ],
+  "ir_version": "1.0",
+  "stmts": [
+    {
+      "id": 0,
+      "kind": "return",
+      "ret": 0
+    },
+    {
+      "id": 1,
+      "items": [
+        0
+      ],
+      "kind": "compound"
+    }
+  ],
+  "types": [
+    {
+      "id": 0,
+      "kind": "void"
+    },
+    {
+      "id": 1,
+      "kind": "int"
+    },
+    {
+      "id": 2,
+      "kind": "char"
+    },
+    {
+      "id": 3,
+      "kind": "float"
+    },
+    {
+      "id": 4,
+      "kind": "double"
+    },
+    {
+      "id": 5,
+      "kind": "bool"
+    },
+    {
+      "id": 6,
+      "kind": "function",
+      "params": [],
+      "ret": 1,
+      "varargs": false
+    }
+  ]
+}

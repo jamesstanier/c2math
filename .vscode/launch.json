@@ -9,7 +9,7 @@
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/build/c2math",
-      "args": ["--dump-ir", "${workspaceFolder}/tests/fr_tests/03_assign.c", "--", "-x", "c", "-std=c11"],
+      "args": ["--dump-json", "${workspaceFolder}/tests/fr_tests/03_assign.c", "--", "-x", "c", "-std=c11"],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}",
       "environment": [],

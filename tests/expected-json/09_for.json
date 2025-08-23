@@ -1,0 +1,97 @@
+{
+  "decls": [
+    {
+      "body": 3,
+      "id": 0,
+      "kind": "func",
+      "linkage": "external",
+      "name": "prod_to_n",
+      "params": [
+        {
+          "name": "n",
+          "type": 1
+        }
+      ],
+      "type": 6
+    }
+  ],
+  "exprs": [
+    {
+      "id": 0,
+      "kind": "int_lit",
+      "type": 1,
+      "value": 1
+    },
+    {
+      "id": 1,
+      "kind": "var_ref",
+      "sym": 3,
+      "type": 1,
+      "value": "p"
+    }
+  ],
+  "ir_version": "1.0",
+  "stmts": [
+    {
+      "id": 0,
+      "init": 0,
+      "kind": "decl_stmt",
+      "name": "p",
+      "type": 1
+    },
+    {
+      "id": 1,
+      "kind": "hole",
+      "reason": "stmt_unsupported"
+    },
+    {
+      "id": 2,
+      "kind": "return",
+      "ret": 1
+    },
+    {
+      "id": 3,
+      "items": [
+        0,
+        1,
+        2
+      ],
+      "kind": "compound"
+    }
+  ],
+  "types": [
+    {
+      "id": 0,
+      "kind": "void"
+    },
+    {
+      "id": 1,
+      "kind": "int"
+    },
+    {
+      "id": 2,
+      "kind": "char"
+    },
+    {
+      "id": 3,
+      "kind": "float"
+    },
+    {
+      "id": 4,
+      "kind": "double"
+    },
+    {
+      "id": 5,
+      "kind": "bool"
+    },
+    {
+      "id": 6,
+      "kind": "function",
+      "params": [
+        1
+      ],
+      "ret": 1,
+      "varargs": false
+    }
+  ]
+}
