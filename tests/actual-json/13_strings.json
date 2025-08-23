@@ -1,0 +1,86 @@
+{
+  "decls": [
+    {
+      "body": 1,
+      "id": 0,
+      "kind": "func",
+      "linkage": "external",
+      "name": "first_char_is_A",
+      "params": [
+        {
+          "name": "s",
+          "type": 8
+        }
+      ],
+      "type": 7
+    }
+  ],
+  "exprs": [
+    {
+      "id": 0,
+      "kind": "hole",
+      "type": 1,
+      "value": "assign_or_side_effect_expr"
+    }
+  ],
+  "ir_version": "1.0",
+  "stmts": [
+    {
+      "id": 0,
+      "kind": "return",
+      "ret": 0
+    },
+    {
+      "id": 1,
+      "items": [
+        0
+      ],
+      "kind": "compound"
+    }
+  ],
+  "types": [
+    {
+      "id": 0,
+      "kind": "void"
+    },
+    {
+      "id": 1,
+      "kind": "int"
+    },
+    {
+      "id": 2,
+      "kind": "char"
+    },
+    {
+      "id": 3,
+      "kind": "float"
+    },
+    {
+      "id": 4,
+      "kind": "double"
+    },
+    {
+      "id": 5,
+      "kind": "bool"
+    },
+    {
+      "id": 6,
+      "kind": "pointer",
+      "pointee": 2
+    },
+    {
+      "id": 7,
+      "kind": "function",
+      "params": [
+        6
+      ],
+      "ret": 1,
+      "varargs": false
+    },
+    {
+      "id": 8,
+      "kind": "pointer",
+      "pointee": 2
+    }
+  ]
+}
