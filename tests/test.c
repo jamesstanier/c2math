@@ -5,6 +5,7 @@ struct S { int x; };
 enum E { A = 1, B };
 
 static int g;
+char str1[] = "Hello!";
 
 int add(myint a, int b) {
   struct S s = { .x = a };

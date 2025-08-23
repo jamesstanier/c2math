@@ -1,3 +1,4 @@
+#include <sstream>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -21,6 +22,8 @@
 #include "clang/AST/ASTContext.h"
 
 #include "symbol_table.hpp"
+#include "ir.hpp"
+#include "ir_builder.hpp"
 
 using namespace clang;
 using namespace clang::tooling;
@@ -41,6 +44,12 @@ static cl::opt<std::string> StdOpt(
 static cl::opt<bool> DumpSyms(
   "dump-syms",
   cl::desc("Print the built symbol table and resolved uses (FR-002)"),
+  cl::cat(C2ASTCat), cl::init(false)
+);
+
+static cl::opt<bool> DumpIR(
+  "dump-ir",
+  cl::desc("Print lowered IR (FR-003)"),
   cl::cat(C2ASTCat), cl::init(false)
 );
 
@@ -101,12 +110,24 @@ public:
     ASTContext &Ctx = getCompilerInstance().getASTContext();
     clang::TranslationUnitDecl* TU = Ctx.getTranslationUnitDecl();
 
+    // FR-002
     c2ast::SymTab ST;
     c2ast::SymbolTableBuilder B(Ctx, ST);
     B.build(TU);
 
     if (DumpSyms) {
       B.dump(llvm::outs());
+    }
+
+    // FR-003
+    c2ir::Module M;
+    c2ir::IRBuilder IRB(Ctx, &ST,M);
+    IRB.lower(TU);
+
+    if (DumpIR) {
+      std::ostringstream oss;
+      M.dump(oss);
+      llvm::outs() << oss.str();
     }
 
     SyntaxOnlyAction::EndSourceFileAction();

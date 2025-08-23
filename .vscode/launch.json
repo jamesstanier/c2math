@@ -9,7 +9,7 @@
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/build/c2ast",
-      "args": ["--dump-syms", "${workspaceFolder}/tests/test.c", "--", "-x", "c", "-std=c11"],
+      "args": ["--dump-ir", "${workspaceFolder}/tests/test.c", "--", "-x", "c", "-std=c11"],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}",
       "environment": [],
