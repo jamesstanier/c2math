@@ -121,7 +121,7 @@ public:
 
     // FR-003
     c2ir::Module M;
-    c2ir::IRBuilder IRB(Ctx, &ST,M);
+    c2ir::IRBuilder IRB(Ctx, &ST, M);
     IRB.lower(TU);
 
     if (DumpIR) {

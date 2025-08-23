@@ -17,10 +17,10 @@ message(STATUS "Using ClangConfig.cmake in: ${Clang_DIR}")
 include_directories(SYSTEM ${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
 
-add_executable(c2ast src/main.cpp)
+add_executable(c2math src/main.cpp)
 
 # Link only what we need for “syntax-only” parsing
-target_link_libraries(c2ast
+target_link_libraries(c2math
   PRIVATE
     clangTooling
     clangFrontend
