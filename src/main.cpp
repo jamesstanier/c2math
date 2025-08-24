@@ -26,13 +26,14 @@
 #include "ir_builder.hpp"
 #include "json_exporter.hpp"
 #include "json_importer.hpp"
+#include "sympy_exporter.hpp"
 
 using namespace clang;
 using namespace clang::tooling;
 using namespace llvm;
 
 // ---- CLI category & flags ----------------------------------------------------
-static cl::OptionCategory C2ASTCat("c2ast options");
+static cl::OptionCategory C2ASTCat("c2math options");
 static cl::opt<bool> Werror(
     "warnings-as-errors",
     cl::desc("Treat warnings as errors (exit non-zero on any warnings)"),
@@ -66,6 +67,13 @@ static cl::opt<std::string> ReadJSON(
   cl::desc("READ IR from JSON file (FR-005)"),
   cl::value_desc("path"),
   cl::cat(C2ASTCat)
+);
+
+static cl::opt<bool> DumpSrepr(
+  "dump-srepr",
+  cl::desc("Emit Sympy srepr JSON (FR-006)"),
+  cl::cat(C2ASTCat),
+  cl::init(false)
 );
 
 // ---- Diagnostic consumer that prints file:line:col and counts severities -----
@@ -151,16 +159,16 @@ public:
       std::cout << std::endl;
     }
 
+    if (DumpSrepr) {
+      c2sympy::write_module_srepr_json(M, std::cout);
+      std::cout << '\n';
+    }
+
     SyntaxOnlyAction::EndSourceFileAction();
   }
 };
 
 int main(int argc, const char **argv) {
-  // Print header for traceability (optional)
-  if (!DumpJSON) {
-    //llvm::outs() << "c2math (Clang " << getClangFullVersion() << ")\n";
-  }
-
   auto ExpectedParser = CommonOptionsParser::create(argc, argv, C2ASTCat, cl::ZeroOrMore);
   
   if (!ExpectedParser) {
@@ -168,6 +176,12 @@ int main(int argc, const char **argv) {
     return 2;
   }
   CommonOptionsParser &Options = ExpectedParser.get();
+
+  int outputs = static_cast<int>(DumpJSON) + static_cast<int>(DumpIR) + static_cast<int>(DumpSrepr);
+  if (outputs > 1) {
+    WithColor::error() << "choose only one of --dump-ir, --dump-json, or --dump-srepr\n";
+    return 1;
+  }
 
   // FR-005
   if (!ReadJSON.getValue().empty()) {
@@ -185,7 +199,10 @@ int main(int argc, const char **argv) {
     }
 
     // Optional outputs after import:
-    if (DumpIR) {
+    if (DumpSrepr) {
+      c2sympy::write_module_srepr_json(M, std::cout);
+      std::cout << '\n';
+    } else if (DumpIR) {
       M.dump(std::cout);
     } else if (DumpJSON) {
       c2json::write_module_json(M, std::cout);
@@ -230,7 +247,7 @@ int main(int argc, const char **argv) {
   }
 
   // Success path
-  if (!DumpJSON) {
+  if (!DumpJSON && !DumpSrepr) {
     // Print footer for traceability (optional)
     llvm::outs() << "c2math (Clang " << getClangFullVersion() << ")\n";
     llvm::outs() << "Parsed " << Options.getSourcePathList().size()

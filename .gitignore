@@ -21,3 +21,5 @@ compile_commands.json
 # Logs
 *.log
 
+c2math_env/
+__pycache__/

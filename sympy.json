@@ -1,0 +1,30 @@
+{
+  "decls": [
+    {
+      "kind": "func",
+      "name": "arith",
+      "srepr": "Lambda((Symbol('a'), Symbol('b')), Add(Add(Symbol('a'), Mul(Symbol('b'), Integer(2))), Mul(Integer(-1), Mul(Symbol('a'), Pow(Symbol('b'), Integer(-1))))))"
+    }
+  ],
+  "exprs": [
+    "Symbol('a')",
+    "Symbol('b')",
+    "Integer(2)",
+    "Mul(Symbol('b'), Integer(2))",
+    "Add(Symbol('a'), Mul(Symbol('b'), Integer(2)))",
+    "Symbol('a')",
+    "Symbol('b')",
+    "Mul(Symbol('a'), Pow(Symbol('b'), Integer(-1)))",
+    "Add(Add(Symbol('a'), Mul(Symbol('b'), Integer(2))), Mul(Integer(-1), Mul(Symbol('a'), Pow(Symbol('b'), Integer(-1)))))"
+  ],
+  "ir_version": "1.0",
+  "types": [
+    "Symbol('void')",
+    "Symbol('int')",
+    "Symbol('char')",
+    "Symbol('float')",
+    "Symbol('double')",
+    "Symbol('bool')",
+    "Function('fn_type')(Symbol('int'), Symbol('int'), Symbol('int'))"
+  ]
+}
