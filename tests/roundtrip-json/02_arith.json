@@ -1,0 +1,141 @@
+{
+  "decls": [
+    {
+      "body": 1,
+      "id": 0,
+      "kind": "func",
+      "linkage": "external",
+      "name": "arith",
+      "params": [
+        {
+          "name": "a",
+          "type": 1
+        },
+        {
+          "name": "b",
+          "type": 1
+        }
+      ],
+      "type": 6
+    }
+  ],
+  "exprs": [
+    {
+      "id": 0,
+      "kind": "var_ref",
+      "sym": 3,
+      "type": 1,
+      "value": "a"
+    },
+    {
+      "id": 1,
+      "kind": "var_ref",
+      "sym": 4,
+      "type": 1,
+      "value": "b"
+    },
+    {
+      "id": 2,
+      "kind": "int_lit",
+      "type": 1,
+      "value": 2
+    },
+    {
+      "id": 3,
+      "kind": "binop",
+      "lhs": 1,
+      "op": "*",
+      "rhs": 2,
+      "type": 1
+    },
+    {
+      "id": 4,
+      "kind": "binop",
+      "lhs": 0,
+      "op": "+",
+      "rhs": 3,
+      "type": 1
+    },
+    {
+      "id": 5,
+      "kind": "var_ref",
+      "sym": 3,
+      "type": 1,
+      "value": "a"
+    },
+    {
+      "id": 6,
+      "kind": "var_ref",
+      "sym": 4,
+      "type": 1,
+      "value": "b"
+    },
+    {
+      "id": 7,
+      "kind": "binop",
+      "lhs": 5,
+      "op": "/",
+      "rhs": 6,
+      "type": 1
+    },
+    {
+      "id": 8,
+      "kind": "binop",
+      "lhs": 4,
+      "op": "-",
+      "rhs": 7,
+      "type": 1
+    }
+  ],
+  "ir_version": "1.0",
+  "stmts": [
+    {
+      "id": 0,
+      "kind": "return",
+      "ret": 8
+    },
+    {
+      "id": 1,
+      "items": [
+        0
+      ],
+      "kind": "compound"
+    }
+  ],
+  "types": [
+    {
+      "id": 0,
+      "kind": "void"
+    },
+    {
+      "id": 1,
+      "kind": "int"
+    },
+    {
+      "id": 2,
+      "kind": "char"
+    },
+    {
+      "id": 3,
+      "kind": "float"
+    },
+    {
+      "id": 4,
+      "kind": "double"
+    },
+    {
+      "id": 5,
+      "kind": "bool"
+    },
+    {
+      "id": 6,
+      "kind": "function",
+      "params": [
+        1,
+        1
+      ],
+      "ret": 1,
+      "varargs": false
+    }
+  ]
+}

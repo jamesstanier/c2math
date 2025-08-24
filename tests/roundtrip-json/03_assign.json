@@ -1,0 +1,130 @@
+{
+  "decls": [
+    {
+      "body": 4,
+      "id": 0,
+      "kind": "func",
+      "linkage": "external",
+      "name": "assign",
+      "params": [
+        {
+          "name": "x",
+          "type": 1
+        }
+      ],
+      "type": 6
+    }
+  ],
+  "exprs": [
+    {
+      "id": 0,
+      "kind": "var_ref",
+      "sym": 2,
+      "type": 1,
+      "value": "x"
+    },
+    {
+      "id": 1,
+      "kind": "int_lit",
+      "type": 1,
+      "value": 1
+    },
+    {
+      "id": 2,
+      "kind": "binop",
+      "lhs": 0,
+      "op": "+",
+      "rhs": 1,
+      "type": 1
+    },
+    {
+      "id": 3,
+      "kind": "hole",
+      "type": 1,
+      "value": "assign_or_side_effect_expr"
+    },
+    {
+      "id": 4,
+      "kind": "hole",
+      "type": 1,
+      "value": "assign_or_side_effect_expr"
+    },
+    {
+      "id": 5,
+      "kind": "var_ref",
+      "sym": 3,
+      "type": 1,
+      "value": "y"
+    }
+  ],
+  "ir_version": "1.0",
+  "stmts": [
+    {
+      "id": 0,
+      "init": 2,
+      "kind": "decl_stmt",
+      "name": "y",
+      "type": 1
+    },
+    {
+      "expr": 3,
+      "id": 1,
+      "kind": "expr_stmt"
+    },
+    {
+      "expr": 4,
+      "id": 2,
+      "kind": "expr_stmt"
+    },
+    {
+      "id": 3,
+      "kind": "return",
+      "ret": 5
+    },
+    {
+      "id": 4,
+      "items": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "kind": "compound"
+    }
+  ],
+  "types": [
+    {
+      "id": 0,
+      "kind": "void"
+    },
+    {
+      "id": 1,
+      "kind": "int"
+    },
+    {
+      "id": 2,
+      "kind": "char"
+    },
+    {
+      "id": 3,
+      "kind": "float"
+    },
+    {
+      "id": 4,
+      "kind": "double"
+    },
+    {
+      "id": 5,
+      "kind": "bool"
+    },
+    {
+      "id": 6,
+      "kind": "function",
+      "params": [
+        1
+      ],
+      "ret": 1,
+      "varargs": false
+    }
+  ]
+}

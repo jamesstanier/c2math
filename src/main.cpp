@@ -1,5 +1,6 @@
 #include <sstream>
 #include <iostream>
+#include <fstream>
 #include <memory>
 #include <string>
 #include <vector>
@@ -19,12 +20,12 @@
 #include "clang/Basic/Version.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
-#include "clang/AST/ASTContext.h"
 
 #include "symbol_table.hpp"
 #include "ir.hpp"
 #include "ir_builder.hpp"
 #include "json_exporter.hpp"
+#include "json_importer.hpp"
 
 using namespace clang;
 using namespace clang::tooling;
@@ -58,6 +59,13 @@ static cl::opt<bool> DumpJSON(
   "dump-json",
   cl::desc("Print IR as JSON (FR-004)"),
   cl::cat(C2ASTCat), cl::init(false)
+);
+
+static cl::opt<std::string> ReadJSON(
+  "read-json",
+  cl::desc("READ IR from JSON file (FR-005)"),
+  cl::value_desc("path"),
+  cl::cat(C2ASTCat)
 );
 
 // ---- Diagnostic consumer that prints file:line:col and counts severities -----
@@ -137,6 +145,7 @@ public:
       llvm::outs() << oss.str();
     }
 
+    // FR-004
     if (DumpJSON) {
       c2json::write_module_json(M, std::cout);
       std::cout << std::endl;
@@ -152,13 +161,44 @@ int main(int argc, const char **argv) {
     //llvm::outs() << "c2math (Clang " << getClangFullVersion() << ")\n";
   }
 
-  auto ExpectedParser = CommonOptionsParser::create(argc, argv, C2ASTCat, cl::OneOrMore);
+  auto ExpectedParser = CommonOptionsParser::create(argc, argv, C2ASTCat, cl::ZeroOrMore);
   
   if (!ExpectedParser) {
     WithColor::error() << toString(ExpectedParser.takeError()) << "\n";
     return 2;
   }
   CommonOptionsParser &Options = ExpectedParser.get();
+
+  // FR-005
+  if (!ReadJSON.getValue().empty()) {
+    std::ifstream ifs(ReadJSON.getValue(), std::ios::in | std::ios::binary);
+    if (!ifs) {
+      WithColor::error() << "cannot open: " << ReadJSON.getValue() << "\n";
+      return 1;
+    }
+
+    c2ir::Module M;
+    std::string err;
+    if (!c2json::read_module_json(ifs, M, &err)) {
+      WithColor::error() << "import failed: " << err << "\n";
+      return 1;
+    }
+
+    // Optional outputs after import:
+    if (DumpIR) {
+      M.dump(std::cout);
+    } else if (DumpJSON) {
+      c2json::write_module_json(M, std::cout);
+      std::cout << '\n';
+    } else {
+      llvm::outs()  << "Imported IR v" << M.ir_version
+                    << " (types=" << M.types.size()
+                    << ", decls=" << M.decls.size()
+                    << ", stmts=" << M.stmts.size()
+                    << ", exprs=" << M.exprs.size() << ")\n";
+    }
+    return 0;
+  }
 
   // Build the tool from compile_commands.json (respects per-file flags).
   ClangTool Tool(Options.getCompilations(), Options.getSourcePathList());
@@ -191,6 +231,7 @@ int main(int argc, const char **argv) {
 
   // Success path
   if (!DumpJSON) {
+    // Print footer for traceability (optional)
     llvm::outs() << "c2math (Clang " << getClangFullVersion() << ")\n";
     llvm::outs() << "Parsed " << Options.getSourcePathList().size()
                  << " file(s) successfully.\n";
