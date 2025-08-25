@@ -17,3 +17,15 @@ A research project to translate C code into an intermediate representation (IR) 
 mkdir build && cd build
 cmake ..
 make
+```
+
+## License
+
+This project is dual-licensed:
+
+- Open Source: [GPL v3.0](./LICENSE)
+- Commercial: [Commercial License](./LICENSE-COMMERCIAL) (contact me for details)
+
+If you are building an open-source project, you are free to use this under the terms of the GPL v3.0.
+For closed-source, proprietary use, please [contact me](mailto:j.stanier766@gmail.com).
+
