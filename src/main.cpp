@@ -41,6 +41,7 @@
 #include "json_exporter.hpp"
 #include "json_importer.hpp"
 #include "sympy_exporter.hpp"
+#include "sympy_ingestor.hpp"
 
 using namespace clang;
 using namespace clang::tooling;
@@ -88,6 +89,14 @@ static cl::opt<bool> DumpSrepr(
   cl::desc("Emit Sympy srepr JSON (FR-006)"),
   cl::cat(C2ASTCat),
   cl::init(false)
+);
+
+static cl::opt<std::string> ReadSrepr(
+  "read-srepr",
+  cl::desc("Import SymPy srepr JSON (FR-007)"),
+  cl::value_desc("file"),
+  cl::cat(C2ASTCat),
+  cl::init("")
 );
 
 // ---- Diagnostic consumer that prints file:line:col and counts severities -----
@@ -228,6 +237,22 @@ int main(int argc, const char **argv) {
                     << ", stmts=" << M.stmts.size()
                     << ", exprs=" << M.exprs.size() << ")\n";
     }
+    return 0;
+  }
+
+  if (!ReadSrepr.empty()) {
+    std::ifstream ifs(ReadSrepr.getValue(), std::ios::in | std::ios::binary);
+    if (!ifs) { WithColor:: error() << "cannot open: " << ReadSrepr << "\n"; return 1; }
+
+    c2ir::Module M;
+    std::string err;
+    if (!c2sympy_ingest::read_srepr_json_to_ir(ifs, M, &err)) {
+      WithColor::error() << "srepr import failed: " << err << "\n"; return 1;
+    }
+
+    if (DumpIR) { M.dump(std::cout); std::cout << '\n'; return 0; }
+    if (DumpJSON) { c2json::write_module_json(M, std::cout); std::cout << '\n'; return 0; }
+    if (DumpSrepr) { c2sympy::write_module_srepr_json(M, std::cout); std::cout << '\n'; return 0; }
     return 0;
   }
 
