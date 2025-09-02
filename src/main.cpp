@@ -42,6 +42,7 @@
 #include "json_importer.hpp"
 #include "sympy_exporter.hpp"
 #include "sympy_ingestor.hpp"
+#include "c_codegen.hpp"
 
 using namespace clang;
 using namespace clang::tooling;
@@ -98,6 +99,55 @@ static cl::opt<std::string> ReadSrepr(
   cl::cat(C2ASTCat),
   cl::init("")
 );
+
+static cl::opt<std::string> EmitC(
+  "emit-c",
+  cl::desc("Emit C source from IR to <path> (stdout if empty)"),
+  cl::value_desc("path"),
+  cl::cat(C2ASTCat),
+  cl::init("")
+);
+
+// Put this near the top of main.cpp (or in an anon namespace)
+static int emit_outputs(const c2ir::Module& M) {
+  if (DumpIR) {
+    M.dump(std::cout);
+    std::cout << '\n';
+    return 0;
+  }
+  if (DumpJSON) {
+    c2json::write_module_json(M, std::cout);
+    std::cout << '\n';
+    return 0;
+  }
+  if (DumpSrepr) {
+    c2sympy::write_module_srepr_json(M, std::cout);  // note: c2sympy::
+    std::cout << '\n';
+    return 0;
+  }
+  if (EmitC.getNumOccurrences() > 0) {
+    std::unique_ptr<std::ostream> out;
+    if (EmitC.empty()) {
+      out.reset(new std::ostream(std::cout.rdbuf()));
+    } else {
+      auto f = std::make_unique<std::ofstream>(EmitC.getValue());
+      if (!*f) {
+        WithColor::error() << "cannot open: " << EmitC << "\n";
+        return 1;
+      }
+      out = std::move(f);
+    }
+    c2c::Options co{};
+    co.emit_prototypes = true;  // optional, but nice for multi-fn files
+    c2c::write_module_c(M, *out, co);
+    return 0;
+  }
+
+  // Default if no output flag was set (pick what your tool normally does)
+  M.dump(std::cout);
+  std::cout << '\n';
+  return 0;
+}
 
 // ---- Diagnostic consumer that prints file:line:col and counts severities -----
 class CollectingDiagConsumer : public DiagnosticConsumer {
@@ -170,22 +220,7 @@ public:
     c2ir::IRBuilder IRB(Ctx, &ST, M);
     IRB.lower(TU);
 
-    if (DumpIR) {
-      std::ostringstream oss;
-      M.dump(oss);
-      llvm::outs() << oss.str();
-    }
-
-    // FR-004
-    if (DumpJSON) {
-      c2json::write_module_json(M, std::cout);
-      std::cout << std::endl;
-    }
-
-    if (DumpSrepr) {
-      c2sympy::write_module_srepr_json(M, std::cout);
-      std::cout << '\n';
-    }
+    emit_outputs(M);
 
     SyntaxOnlyAction::EndSourceFileAction();
   }
@@ -200,7 +235,11 @@ int main(int argc, const char **argv) {
   }
   CommonOptionsParser &Options = ExpectedParser.get();
 
-  int outputs = static_cast<int>(DumpJSON) + static_cast<int>(DumpIR) + static_cast<int>(DumpSrepr);
+  int outputs = 
+    static_cast<int>(DumpJSON) + 
+    static_cast<int>(DumpIR) + 
+    static_cast<int>(DumpSrepr) +
+    static_cast<int>(EmitC.getNumOccurrences() > 0);
   if (outputs > 1) {
     WithColor::error() << "choose only one of --dump-ir, --dump-json, or --dump-srepr\n";
     return 1;
@@ -217,27 +256,21 @@ int main(int argc, const char **argv) {
     c2ir::Module M;
     std::string err;
     if (!c2json::read_module_json(ifs, M, &err)) {
-      WithColor::error() << "import failed: " << err << "\n";
+      WithColor::error() << "json import failed: " << err << "\n";
       return 1;
     }
 
-    // Optional outputs after import:
-    if (DumpSrepr) {
-      c2sympy::write_module_srepr_json(M, std::cout);
-      std::cout << '\n';
-    } else if (DumpIR) {
-      M.dump(std::cout);
-    } else if (DumpJSON) {
-      c2json::write_module_json(M, std::cout);
-      std::cout << '\n';
-    } else {
+    const bool wants_output = DumpIR || DumpJSON || DumpSrepr || (EmitC.getNumOccurrences() > 0);
+
+    if (!wants_output) {
       llvm::outs()  << "Imported IR v" << M.ir_version
                     << " (types=" << M.types.size()
                     << ", decls=" << M.decls.size()
                     << ", stmts=" << M.stmts.size()
                     << ", exprs=" << M.exprs.size() << ")\n";
     }
-    return 0;
+
+    return emit_outputs(M);
   }
 
   if (!ReadSrepr.empty()) {
@@ -249,11 +282,7 @@ int main(int argc, const char **argv) {
     if (!c2sympy_ingest::read_srepr_json_to_ir(ifs, M, &err)) {
       WithColor::error() << "srepr import failed: " << err << "\n"; return 1;
     }
-
-    if (DumpIR) { M.dump(std::cout); std::cout << '\n'; return 0; }
-    if (DumpJSON) { c2json::write_module_json(M, std::cout); std::cout << '\n'; return 0; }
-    if (DumpSrepr) { c2sympy::write_module_srepr_json(M, std::cout); std::cout << '\n'; return 0; }
-    return 0;
+    return emit_outputs(M);
   }
 
   // Build the tool from compile_commands.json (respects per-file flags).
