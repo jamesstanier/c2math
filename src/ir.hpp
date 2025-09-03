@@ -40,17 +40,51 @@ static inline constexpr DeclId  kInvalidDecl = -1;
 // ---- Types -------------------------------------------------------------------
 enum class TypeKind {
   Void, Bool, Char, Int, UInt, Long, ULong, Float, Double,
-  Pointer, Function
+  Pointer, Function, Qualified, Array, Record, Enum
 };
 
 struct Type {
   TypeKind kind{};
+
   // For Pointer:
   TypeId pointee = kInvalidType;
+
   // For Function:
   TypeId ret = kInvalidType;
   std::vector<TypeId> params;
   bool varargs = false;
+
+  // For Qualified (cv-qualifiers applied to the immediate type)
+  // Example:
+  //   Qualified(Pointer(int), const)  =>  'int * const'
+  //   Pointer(Qualified(int, const))  =>  'const int *'
+  TypeId base = kInvalidType;   // qualified base type
+  uint8_t quals = 0;            // bitmask: 1=const, 2=volatile
+
+  // For Array (N<0 means incomplete/flexible)
+  TypeId elem = kInvalidType;   // element type
+  long long count = -2;         // >=0: fixed size, -1: flexible/incomplete, -2: unused
+
+  // For Record (struct/union)
+  struct Field {
+    std::string name;
+    TypeId type = kInvalidType;
+    int bit_width = -1;         // -1 if not a bitfield
+  };
+  bool is_union = false;
+  bool is_complete = false;
+  std::string tag;              // tag name (may be empty for anonymous)
+  std::vector<Field> fields;
+
+  // For Enum
+  struct Enumerator {
+    std::string name;
+    long long value = 0;
+    bool has_value = false;
+  };
+  std::string enum_tag;                // tag name (may be empty)
+  std::vector<Enumerator> enumerators;
+  TypeId enum_underlying = kInvalidType; // underlying integer type if known
 };
 
 // ---- Expressions (subset; holes allowed per FR-016) --------------------------

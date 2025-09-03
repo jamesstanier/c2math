@@ -13,7 +13,7 @@
  */
 
  #pragma once
-// FR-008: IR → C code generator (subset MVP)
+// FR-008/FR-009: IR → C code generator (types, decls)
 // ------------------------------------------------------------
 // Generates valid C11 source from your IR. This initial cut
 // focuses on what FR-006/FR-007 already support today:
@@ -51,9 +51,9 @@
 namespace c2c {
 
 struct Options {
-  bool emit_prototypes = false;   // also emit prototypes before defs
-  bool single_function = false;   // restrict output to one function
-  std::string only_func;          // the function name when single_function=true
+  bool emit_prototypes = false;
+  bool single_function = false;
+  std::string only_func;
 };
 
 // ---------- small helpers for ID validity ----------
@@ -67,22 +67,156 @@ static inline const T* try_get(const std::vector<T>& v, int id) {
   return id_valid(v, id) ? &v[static_cast<std::size_t>(id)] : nullptr;
 }
 
-// ---------- Type printing (MVP) ----------
-static inline std::string type_to_c(const c2ir::Type& T) {
+// ---------- Type & declarator printing (FR-009: richer types) ----------
+static inline std::string base_type_to_c(const c2ir::Type& T) {
   using TK = c2ir::TypeKind;
   switch (T.kind) {
     case TK::Void:   return "void";
+    case TK::Bool:   return "bool";
+    case TK::Char:   return "char";
     case TK::Int:    return "int";
+    case TK::UInt:   return "unsigned int";
+    case TK::Long:   return "long";
+    case TK::ULong:  return "unsigned long";
     case TK::Float:  return "float";
     case TK::Double: return "double";
-    // TK::Function and others will be rendered via declarator contexts in later FRs.
-    default:         return "int"; // safe default for MVP
+    case TK::Record: return (T.is_union ? std::string("union ") : std::string("struct ")) + (T.tag.empty()?std::string(""):T.tag);
+    case TK::Enum:   return std::string("enum ") + (T.enum_tag.empty()?std::string(""):T.enum_tag);
+    default:         return "int"; // fallback
   }
 }
 
+// Build a split declarator: base  left name right
+// Example for "int (*fp)(float)": base="int", left="*", right="(float)"
+struct DeclPieces {
+  std::string base;
+  std::string left;
+  std::string right;
+};
+
+static inline c2ir::TypeKind get_kind(const c2ir::Module& M, c2ir::TypeId id){
+  if (!id_valid(M.types, id)) return c2ir::TypeKind::Int;
+  return M.types[static_cast<std::size_t>(id)].kind;
+}
+
+static inline void append_cv(std::string& s, uint8_t quals){
+  if (quals & 1) { if(!s.empty()) s += ' '; s += "const"; }
+  if (quals & 2) { if(!s.empty()) s += ' '; s += "volatile"; }
+}
+
+static inline DeclPieces build_decl_pieces(const c2ir::Module& M,
+                                           c2ir::TypeId ty,
+                                           const std::vector<c2ir::Param>* outer_params,
+                                           bool is_outermost) {
+  DeclPieces out;
+  if (!id_valid(M.types, ty)) { out.base = "int"; return out; }
+  const auto& T = M.types[static_cast<std::size_t>(ty)];
+  using TK = c2ir::TypeKind;
+  switch (T.kind) {
+    case TK::Pointer: {
+      auto inner = build_decl_pieces(M, T.pointee, outer_params, false);
+      inner.left += "*";
+      return inner;
+    }
+    case TK::Function: {
+      // Start from return type pieces
+      auto inner = build_decl_pieces(M, T.ret, outer_params, false);
+
+      // Render parameter list (names only for outermost decl if provided)
+      std::ostringstream ps;
+      ps << "(";
+      for (std::size_t i = 0; i < T.params.size(); ++i) {
+        if (i) ps << ", ";
+        const auto pty = T.params[i];
+        std::string pname;
+        if (is_outermost && outer_params && i < outer_params->size()) {
+          pname = (*outer_params)[i].name;
+        }
+        // Recursively render each parameter declarator
+        DeclPieces pp = build_decl_pieces(M, pty, nullptr, false);
+        // Stitch param: base + ' ' + left+name+right (paren if needed)
+        ps << pp.base;
+        std::string mid = pp.left;
+        if (!pname.empty()) {
+          if (!mid.empty()) mid += pname;
+          else               mid  = pname;
+        }
+        if (!mid.empty()) {
+          if (!pp.left.empty() && !pp.right.empty() && pp.right.front() == '(') {
+            ps << " (" << mid << ")";
+          } else {
+            ps << " " << mid;
+          }
+        }
+        ps << pp.right;
+      }
+      if (T.varargs) {
+        if (!T.params.empty()) ps << ", ";
+        ps << "...";
+      }
+      ps << ")";
+      inner.right += ps.str();
+      return inner;
+    }
+    case TK::Qualified: {
+      // Apply cv to either the pointer level (if present) or to the base token.
+      auto inner = build_decl_pieces(M, T.base, outer_params, false);
+      auto apply_cv = [&](uint8_t q, std::string& target) {
+        if (q & 1) { target += (target.empty() || target.back()=='*' ? " const" : " const"); }
+        if (q & 2) { target += (target.empty() || target.back()=='*' ? " volatile" : " volatile"); }
+      };
+      if (!inner.left.empty() && get_kind(M, T.base) == TK::Pointer) {
+        apply_cv(T.quals, inner.left);     // e.g., int * const
+      } else {
+        std::string cv; append_cv(cv, T.quals);
+        if (!cv.empty()) {
+          if (inner.base.empty()) inner.base = cv;
+          else inner.base = cv + " " + inner.base;  // e.g., const int *
+        }
+      }
+      return inner;
+    }
+    case TK::Array: {
+      auto inner = build_decl_pieces(M, T.elem, outer_params, false);
+      std::ostringstream s;
+      s << "[";
+      if (T.count >= 0) s << T.count;     // flexible/incomplete => "[]"
+      s << "]";
+      inner.right += s.str();
+      return inner;
+    }
+    default:
+      out.base = base_type_to_c(T);
+      return out;
+  }
+}
+
+static inline std::string render_declarator(const c2ir::Module& M,
+                                            c2ir::TypeId ty,
+                                            const std::string& name,
+                                            const std::vector<c2ir::Param>* outer_params = nullptr) {
+  DeclPieces dp = build_decl_pieces(M, ty, outer_params, /*is_outermost*/true);
+  std::ostringstream os;
+  os << dp.base;
+  std::string mid = dp.left + name;
+  if (!mid.empty()) {
+    const bool needs_paren = !dp.left.empty() && !dp.right.empty() &&
+                             (dp.right.front() == '(' || dp.right.front() == '[');
+    if (needs_paren) {
+      os << " (" << mid << ")";
+    } else {
+      os << " " << mid;
+    }
+  }
+  os << dp.right;
+  return os.str();
+}
+
+// Back-compat helper for simple contexts that just need a leaf type name.
 static inline std::string typeid_to_c(const c2ir::Module& M, c2ir::TypeId id) {
   if (!id_valid(M.types, id)) return "int";
-  return type_to_c(M.types[static_cast<std::size_t>(id)]);
+  const auto& T = M.types[static_cast<std::size_t>(id)];
+  return base_type_to_c(T);
 }
 
 // ---------- Expression printing with precedence ----------
@@ -92,6 +226,42 @@ enum Prec : int {
   P_Add     = 70,    // + -
   P_Top     = 0
 };
+
+// Top-level typedefs and variables
+static inline void write_typedef_decl(const c2ir::Module& M, const c2ir::Decl& D,
+                                      std::ostream& os) {
+  std::string decl = render_declarator(M, D.type, D.name);
+  os << "typedef " << decl << ";\n";
+}
+
+static inline void write_var_decl_top(const c2ir::Module& M, const c2ir::Decl& D,
+                                      std::ostream& os) {
+  if (D.linkage == c2ir::Linkage::Internal) os << "static ";
+  else if (D.linkage == c2ir::Linkage::External) os << "/*extern*/ ";
+  std::string decl = render_declarator(M, D.type, D.name);
+  os << decl << ";\n";
+}
+
+static inline void write_record_defn(const c2ir::Module& M, const c2ir::Type& T, std::ostream& os) {
+  os << (T.is_union ? "union " : "struct ") << (T.tag.empty()? "" : T.tag) << " {\n";
+  for (const auto& f : T.fields) {
+    os << "  " << render_declarator(M, f.type, f.name);
+    if (f.bit_width >= 0) os << " : " << f.bit_width;
+    os << ";\n";
+  }
+  os << "};\n";
+}
+static inline void write_enum_defn(const c2ir::Module& M, const c2ir::Type& T, std::ostream& os) {
+  os << "enum " << (T.enum_tag.empty()? "" : T.enum_tag) << " {\n";
+  for (size_t i=0;i<T.enumerators.size();++i) {
+    const auto& e = T.enumerators[i];
+    os << "  " << e.name;
+    if (e.has_value) os << " = " << e.value;
+    if (i+1<T.enumerators.size()) os << ",";
+    os << "\n";
+  }
+  os << "};\n";
+}
 
 static inline void write_expr_rec(const c2ir::Module& M, c2ir::ExprId id,
                                   std::ostream& os, int parent_prec);
@@ -195,31 +365,12 @@ static inline void write_func_decl(const c2ir::Module& M, const c2ir::Decl& D,
                                    std::ostream& os, bool with_body) {
   assert(D.kind == c2ir::DeclKind::Func);
 
-  // Return type (default int if unknown)
-  std::string ret = "int";
-  if (id_valid(M.types, D.type)) {
-    const auto& FT = M.types[static_cast<std::size_t>(D.type)];
-    if (FT.kind == c2ir::TypeKind::Function && id_valid(M.types, FT.ret)) {
-      ret = typeid_to_c(M, FT.ret);
-    }
-  }
-
   // Storage class by linkage
   if (D.linkage == c2ir::Linkage::Internal) os << "static ";
 
-  // Signature
-  os << ret << " " << D.name << "(";
-  if (!D.params.empty()) {
-    for (std::size_t i = 0; i < D.params.size(); ++i) {
-      if (i) os << ", ";
-      const auto& P = D.params[i];
-      const std::string PT = typeid_to_c(M, P.type);
-      os << PT << " " << P.name;
-    }
-  } else {
-    os << "void";
-  }
-  os << ")";
+  // Full declarator from the function type (includes return type and params).
+  std::string sig = render_declarator(M, D.type, D.name, &D.params);
+  os << sig;
 
   // Body or prototype
   if (with_body) {
@@ -235,25 +386,54 @@ static inline void write_func_decl(const c2ir::Module& M, const c2ir::Decl& D,
 }
 
 static inline void write_module_c(const c2ir::Module& M, std::ostream& os,
-                                  const Options& opts = {}) {
-  os << "/* Generated by c2math (FR-008) */\n";
+                                  const Options& opts) {
+  os << "/* Generated by c2math (FR-008 + FR-009 types) */\n\n";
 
-  // (Optional) prototypes first
+  // 0) Sorted enum/record definitions for deterministic output
+  std::vector<const c2ir::Type*> enums, recs;
+  for (const auto& T : M.types) {
+    if (T.kind == c2ir::TypeKind::Enum && !T.enumerators.empty()) {
+      enums.push_back(&T);
+    } else if (T.kind == c2ir::TypeKind::Record && T.is_complete) {
+      recs.push_back(&T);
+    }
+  }
+  std::sort(enums.begin(), enums.end(),
+            [](const c2ir::Type* a, const c2ir::Type* b){ return a->enum_tag < b->enum_tag; });
+  std::sort(recs.begin(), recs.end(),
+            [](const c2ir::Type* a, const c2ir::Type* b){ return a->tag < b->tag; });
+
+  for (auto* T : enums) { write_enum_defn(M, *T, os); os << "\n"; }
+  for (auto* T : recs)  { write_record_defn(M, *T, os); os << "\n"; }
+
+  // 1) typedefs
+  for (const auto& D : M.decls) {
+    if (D.kind == c2ir::DeclKind::Typedef && !opts.single_function) write_typedef_decl(M, D, os);
+  }
+  if (!M.decls.empty()) os << "\n";
+
+  // 2) top-level vars
+  for (const auto& D : M.decls) {
+    if (D.kind == c2ir::DeclKind::Var && !opts.single_function) write_var_decl_top(M, D, os);
+  }
+  if (!M.decls.empty()) os << "\n";
+
+  // 3) optional prototypes
   if (opts.emit_prototypes) {
     for (const auto& D : M.decls) {
-      if (D.kind != c2ir::DeclKind::Func) continue;
-      if (opts.single_function && D.name != opts.only_func) continue;
-      write_func_decl(M, D, os, /*with_body*/false);
+      if (D.kind == c2ir::DeclKind::Func && (!opts.single_function || D.name == opts.only_func)) {
+        write_func_decl(M, D, os, /*with_body*/false);
+      }
     }
     os << "\n";
   }
 
-  // Definitions
+  // 4) defs
   for (const auto& D : M.decls) {
-    if (D.kind != c2ir::DeclKind::Func) continue;
-    if (opts.single_function && D.name != opts.only_func) continue;
-    write_func_decl(M, D, os, /*with_body*/true);
-    os << "\n";
+    if (D.kind == c2ir::DeclKind::Func && (!opts.single_function || D.name == opts.only_func)) {
+      write_func_decl(M, D, os, /*with_body*/true);
+      os << "\n";
+    }
   }
 }
 

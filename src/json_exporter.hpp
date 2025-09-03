@@ -59,6 +59,10 @@ inline const char* type_kind_str(c2ir::TypeKind k) {
     case TK::Double: return "double";
     case TK::Pointer: return "pointer";
     case TK::Function: return "function";
+    case TK::Qualified: return "qualified";
+    case TK::Array: return "array";
+    case TK::Record: return "record";
+    case TK::Enum: return "enum";
   }
   return "unknown";
 }
@@ -140,6 +144,37 @@ inline void write_types(const c2ir::Module& M, std::ostream& os) {
         os << t.params[j];
       }
       os << "],\"varargs\":" << (t.varargs ? "true":"false");
+    } else if (t.kind == c2ir::TypeKind::Qualified) {
+      os << ",\"base\":" << t.base << ",\"quals\":[";
+      bool first=true; if (t.quals & 1){ os << "\"const\""; first=false; }
+      if (t.quals & 2){ if(!first) os << ','; os << "\"volatile\""; }
+      os << "]";
+    } else if (t.kind == c2ir::TypeKind::Array) {
+      os << ",\"elem\":" << t.elem << ",\"count\":" << t.count;
+    } else if (t.kind == c2ir::TypeKind::Record) {
+      os << ",\"tag\":"; write_escaped(os, t.tag);
+      os << ",\"union\":" << (t.is_union ? "true":"false");
+      os << ",\"complete\":" << (t.is_complete ? "true":"false");
+      os << ",\"fields\":[";
+      for (size_t j=0;j<t.fields.size();++j) {
+        if (j) os << ',';
+        os << "{\"name\":"; write_escaped(os, t.fields[j].name);
+        os << ",\"type\":" << t.fields[j].type;
+        if (t.fields[j].bit_width >= 0) os << ",\"bits\":" << t.fields[j].bit_width;
+        os << "}";
+      }
+      os << "]";
+    } else if (t.kind == c2ir::TypeKind::Enum) {
+      os << ",\"tag\":"; write_escaped(os, t.enum_tag);
+      if (t.enum_underlying != c2ir::kInvalidType) os << ",\"underlying\":" << t.enum_underlying;
+      os << ",\"items\":[";
+      for (size_t j=0;j<t.enumerators.size();++j) {
+        if (j) os << ',';
+        os << "{\"name\":"; write_escaped(os, t.enumerators[j].name);
+        if (t.enumerators[j].has_value) os << ",\"value\":" << t.enumerators[j].value;
+        os << "}";
+      }
+      os << "]";
     }
     os << '}';
   }

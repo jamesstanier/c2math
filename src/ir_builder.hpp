@@ -235,6 +235,13 @@ private:
   TypeId mapType(clang::QualType QT) {
     QT = QT.getCanonicalType();
 
+    // Top-level cv-qualifiers
+    if (QT.isConstQualified() || QT.isVolatileQualified()) {
+      Type T; T.kind = TypeKind::Qualified; T.base = mapType(QT.getUnqualifiedType());
+      uint8_t q=0; if (QT.isConstQualified()) q|=1; if (QT.isVolatileQualified()) q|=2; T.quals=q;
+      return M.make(T);
+    }
+
     if (QT->isVoidType())    return tVoid;
     if (QT->isBooleanType()) return tBool;
     if (QT->isCharType())    return tChar;
@@ -244,6 +251,17 @@ private:
     }
     if (QT->isSpecificBuiltinType(clang::BuiltinType::Float))  return tFloat;
     if (QT->isSpecificBuiltinType(clang::BuiltinType::Double)) return tDouble;
+
+    if (QT->isArrayType()) {
+      const clang::ArrayType* AT = llvm::dyn_cast<clang::ArrayType>(QT.getTypePtr());
+      Type T; T.kind = TypeKind::Array; T.elem = mapType(AT->getElementType());
+      if (const auto* CAT = llvm::dyn_cast<clang::ConstantArrayType>(AT)) {
+        T.count = (long long)CAT->getSize().getSExtValue();
+      } else {
+        T.count = -1; // incomplete/flexible/VLA treated as flexible here
+      }
+      return M.make(T);
+    }
 
     if (QT->isPointerType()) {
       Type T; T.kind = TypeKind::Pointer; T.pointee = mapType(QT->getPointeeType());
@@ -260,8 +278,44 @@ private:
       return M.make(T);
     }
 
-    // aggregates, arrays, enums, typedefs, etc.: placeholder for v1
-    return M.makeBuiltin(TypeKind::Int); // extend in FR-009/013
+    // Records (struct/union)
+    if (QT->isRecordType()) {
+      const clang::RecordType* RT = QT->getAs<clang::RecordType>();
+      const clang::RecordDecl* RD = RT->getDecl();
+      Type T; T.kind = TypeKind::Record;
+      T.is_union = RD->isUnion();
+      T.tag = RD->getNameAsString();
+      T.is_complete = RD->isCompleteDefinition();
+      if (T.is_complete) {
+        for (const auto* F : RD->fields()) {
+          Type::Field f; f.name = F->getNameAsString(); f.type = mapType(F->getType());
+          if (F->isBitField()) f.bit_width = F->getBitWidthValue(Ctx);
+          T.fields.push_back(f);
+        }
+      }
+      return M.make(T);
+    }
+
+    // Enums
+    if (QT->isEnumeralType()) {
+      const clang::EnumType* ET = QT->getAs<clang::EnumType>();
+      const clang::EnumDecl* ED = ET->getDecl();
+      Type T; T.kind = TypeKind::Enum;
+      T.enum_tag = ED->getNameAsString();
+      if (!ED->getIntegerType().isNull()) {
+        T.enum_underlying = mapType(ED->getIntegerType());
+      }
+      for (const auto* ECD : ED->enumerators()) {
+        Type::Enumerator en; en.name = ECD->getNameAsString();
+        en.value = (long long)ECD->getInitVal().getSExtValue();
+        en.has_value = true;
+        T.enumerators.push_back(en);
+      }
+      return M.make(T);
+    }
+
+    // Fallback
+    return M.makeBuiltin(TypeKind::Int);
   }
 
   // Map Clang linkage → our IR linkage using modern API (works across versions)

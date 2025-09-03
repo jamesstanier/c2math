@@ -241,7 +241,7 @@ int main(int argc, const char **argv) {
     static_cast<int>(DumpSrepr) +
     static_cast<int>(EmitC.getNumOccurrences() > 0);
   if (outputs > 1) {
-    WithColor::error() << "choose only one of --dump-ir, --dump-json, or --dump-srepr\n";
+    WithColor::error() << "choose only one of --dump-ir, --dump-json, --dump-srepr, or --emit-c\n";
     return 1;
   }
 

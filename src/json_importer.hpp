@@ -216,7 +216,10 @@ inline c2ir::TypeKind parse_type_kind(const std::string& s){
   if (s=="double")return TK::Double;
   if (s=="pointer")return TK::Pointer;
   if (s=="function")return TK::Function;
-  // fallback
+  if (s=="qualified")return TK::Qualified;
+  if (s=="array")return TK::Array;
+  if (s=="record")return TK::Record;
+  if (s=="enum")return TK::Enum;
   return TK::Int;
 }
 
@@ -308,6 +311,44 @@ inline bool read_module_json(std::istream& is, c2ir::Module& M, std::string* err
           for (auto& jp : jparams->arr){ int tid=0; if(!to_int(jp,tid)){ if(error_out) *error_out="param type not int"; return false; } T.params.push_back(tid); }
         }
         if (const JValue* jva = jt.find("varargs")){ bool b; if(!to_bool(*jva,b)){ if(error_out) *error_out="varargs not bool"; return false; } T.varargs=b; }
+      } else if (T.kind == c2ir::TypeKind::Qualified) {
+        const JValue* jb = jt.find("base"); int b=0; if(!jb||!to_int(*jb,b)){ if(error_out) *error_out="qualified missing base"; return false; } T.base=b;
+        if (const JValue* jq = jt.find("quals")) {
+          if (!jq->isArr()) { if(error_out) *error_out="quals not array"; return false; }
+          uint8_t mask=0; for (const auto& qv: jq->arr){ if(!qv.isStr()){ if(error_out) *error_out="qual not string"; return false; } if(qv.str=="const") mask|=1; else if(qv.str=="volatile") mask|=2; }
+          T.quals=mask;
+        }
+      } else if (T.kind == c2ir::TypeKind::Array) {
+        const JValue* je = jt.find("elem"); int e=0; if(!je||!to_int(*je,e)){ if(error_out) *error_out="array missing elem"; return false; } T.elem=e;
+        const JValue* jc = jt.find("count"); long long c=0; if(!jc||!to_ll(*jc,c)){ if(error_out) *error_out="array missing count"; return false; } T.count=c;
+      } else if (T.kind == c2ir::TypeKind::Record) {
+        if (const JValue* jtag = jt.find("tag")) T.tag = jtag->str;
+        const JValue* ju = jt.find("union"); if (ju&&ju->isBool()) T.is_union=ju->b;
+        const JValue* jc = jt.find("complete"); if (jc&&jc->isBool()) T.is_complete=jc->b;
+        if (const JValue* jfs = jt.find("fields")) {
+          if (!jfs->isArr()) { if(error_out) *error_out="fields not array"; return false; }
+          for (const auto& jf : jfs->arr) {
+            if (!jf.isObj()) { if(error_out) *error_out="field not obj"; return false; }
+            c2ir::Type::Field f;
+            const JValue* jn = jf.find("name"); if(!jn||!jn->isStr()){ if(error_out) *error_out="field missing name"; return false; } f.name=jn->str;
+            const JValue* jt2 = jf.find("type"); int tid=0; if(!jt2||!to_int(*jt2,tid)){ if(error_out) *error_out="field missing type"; return false; } f.type=tid;
+            if (const JValue* jb = jf.find("bits")) { int bw=0; if(!to_int(*jb,bw)){ if(error_out) *error_out="bits not int"; return false; } f.bit_width=bw; }
+            T.fields.push_back(f);
+          }
+        }
+      } else if (T.kind == c2ir::TypeKind::Enum) {
+        if (const JValue* jtag = jt.find("tag")) T.enum_tag = jtag->str;
+        if (const JValue* ju = jt.find("underlying")) { int ut=0; if(!to_int(*ju,ut)){ if(error_out) *error_out="underlying not int"; return false; } T.enum_underlying=ut; }
+        if (const JValue* jis = jt.find("items")) {
+          if (!jis->isArr()) { if(error_out) *error_out="items not array"; return false; }
+          for (const auto& ji : jis->arr) {
+            if (!ji.isObj()) { if(error_out) *error_out="enum item not obj"; return false; }
+            c2ir::Type::Enumerator en;
+            const JValue* jn = ji.find("name"); if(!jn||!jn->isStr()){ if(error_out) *error_out="enum item missing name"; return false; } en.name=jn->str;
+            if (const JValue* jv = ji.find("value")) { long long vv=0; if(!to_ll(*jv,vv)){ if(error_out) *error_out="enum value not int"; return false; } en.value=vv; en.has_value=true; }
+            T.enumerators.push_back(en);
+          }
+        }
       }
 
       // insert

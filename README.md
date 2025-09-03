@@ -27,5 +27,5 @@ This project is dual-licensed:
 - Commercial: [Commercial License](./LICENSE-COMMERCIAL) (contact me for details)
 
 If you are building an open-source project, you are free to use this under the terms of the GPL v3.0.
-For closed-source, proprietary use, please [contact me](mailto:j.stanier766@gmail.com).
+For closed-source, proprietary use, please contact me: j.stanier766(at)gmail.com.
 

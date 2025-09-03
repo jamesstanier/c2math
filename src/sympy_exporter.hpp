@@ -137,6 +137,54 @@ inline std::string repr_type(const c2ir::Module& M, c2ir::TypeId t) {
       o << ")";
       return o.str();
     }
+    case TK::Qualified: {
+      std::ostringstream o;
+      o << "Function('qual')(" << repr_type(M, T.base);
+      if (T.quals & 1) o << ", Symbol('const')";
+      if (T.quals & 2) o << ", Symbol('volatile')";
+      o << ")";
+      return o.str();
+    }
+    case TK::Array: {
+      std::ostringstream o;
+      o << "Function('array')(" << repr_type(M, T.elem) << ", ";
+      if (T.count >= 0) o << "Integer(" << T.count << ")"; else o << "Symbol('flex')";
+      o << ")";
+      return o.str();
+    }
+    case TK::Record: {
+      std::ostringstream o;
+      o << "Function('record')(" << (T.is_union ? "Symbol('union')" : "Symbol('struct')") << ", "
+        << "Symbol('" << T.tag << "')";
+      if (!T.fields.empty()) {
+        o << ", Tuple(";
+        for (size_t i=0;i<T.fields.size();++i) {
+          if (i) o << ", ";
+          o << "Function('field')(Symbol('" << T.fields[i].name << "'), " << repr_type(M, T.fields[i].type);
+          if (T.fields[i].bit_width >= 0) o << ", Integer(" << T.fields[i].bit_width << ")";
+          o << ")";
+        }
+        o << ")";
+     }
+      o << ")";
+      return o.str();
+    }
+    case TK::Enum: {
+      std::ostringstream o;
+      o << "Function('enum')(Symbol('" << T.enum_tag << "')";
+      if (!T.enumerators.empty()) {
+        o << ", Tuple(";
+        for (size_t i=0;i<T.enumerators.size();++i) {
+          if (i) o << ", ";
+          o << "Function('item')(Symbol('" << T.enumerators[i].name << "')";
+          if (T.enumerators[i].has_value) o << ", Integer(" << T.enumerators[i].value << ")";
+          o << ")";
+        }
+        o << ")";
+      }
+      o << ")";
+      return o.str();
+    }
     default:
       return repr_type_kind(T.kind);
   }
