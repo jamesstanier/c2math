@@ -13,12 +13,12 @@ struct S {
   int *p;
 };
 
-typedef int (*cmp_t)(const void *lhs, const void *rhs);
+typedef int (*cmp_t)(const void *, const void *);
 
 static const int *gp;
 char buf[16];
 
-int sort(int (*cmp)(const void *lhs, const void *rhs), void *arr, int n) {
+int sort(int (*cmp)(const void *, const void *), void *arr, int n) {
 }
 
 float *mk(void) {

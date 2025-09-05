@@ -146,7 +146,8 @@ inline void write_types(const c2ir::Module& M, std::ostream& os) {
       os << "],\"varargs\":" << (t.varargs ? "true":"false");
     } else if (t.kind == c2ir::TypeKind::Qualified) {
       os << ",\"base\":" << t.base << ",\"quals\":[";
-      bool first=true; if (t.quals & 1){ os << "\"const\""; first=false; }
+      bool first=true; 
+      if (t.quals & 1){ os << "\"const\""; first=false; }
       if (t.quals & 2){ if(!first) os << ','; os << "\"volatile\""; }
       os << "]";
     } else if (t.kind == c2ir::TypeKind::Array) {

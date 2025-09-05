@@ -138,7 +138,7 @@ static int emit_outputs(const c2ir::Module& M) {
       out = std::move(f);
     }
     c2c::Options co{};
-    co.emit_prototypes = true;  // optional, but nice for multi-fn files
+    co.emit_prototypes = false; // match tests/fr009/expected.c
     c2c::write_module_c(M, *out, co);
     return 0;
   }

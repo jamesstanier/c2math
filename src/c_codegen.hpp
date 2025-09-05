@@ -153,6 +153,8 @@ static inline DeclPieces build_decl_pieces(const c2ir::Module& M,
       if (T.varargs) {
         if (!T.params.empty()) ps << ", ";
         ps << "...";
+      } else if (T.params.empty()) {
+        ps << "void";
       }
       ps << ")";
       inner.right += ps.str();
@@ -191,6 +193,14 @@ static inline DeclPieces build_decl_pieces(const c2ir::Module& M,
   }
 }
 
+static inline bool outer_is_ptr_to_fn(const c2ir::Module& M, c2ir::TypeId ty){
+  if (!id_valid(M.types, ty)) return false;
+  const auto& T = M.types[static_cast<std::size_t>(ty)];
+  if (T.kind != c2ir::TypeKind::Pointer) return false;
+  if (!id_valid(M.types, T.pointee)) return false;
+  return M.types[static_cast<std::size_t>(T.pointee)].kind == c2ir::TypeKind::Function;
+}
+
 static inline std::string render_declarator(const c2ir::Module& M,
                                             c2ir::TypeId ty,
                                             const std::string& name,
@@ -200,9 +210,8 @@ static inline std::string render_declarator(const c2ir::Module& M,
   os << dp.base;
   std::string mid = dp.left + name;
   if (!mid.empty()) {
-    const bool needs_paren = !dp.left.empty() && !dp.right.empty() &&
-                             (dp.right.front() == '(' || dp.right.front() == '[');
-    if (needs_paren) {
+    const bool wrap_name = outer_is_ptr_to_fn(M, ty);
+    if (wrap_name) {
       os << " (" << mid << ")";
     } else {
       os << " " << mid;
@@ -237,7 +246,6 @@ static inline void write_typedef_decl(const c2ir::Module& M, const c2ir::Decl& D
 static inline void write_var_decl_top(const c2ir::Module& M, const c2ir::Decl& D,
                                       std::ostream& os) {
   if (D.linkage == c2ir::Linkage::Internal) os << "static ";
-  else if (D.linkage == c2ir::Linkage::External) os << "/*extern*/ ";
   std::string decl = render_declarator(M, D.type, D.name);
   os << decl << ";\n";
 }
@@ -378,7 +386,7 @@ static inline void write_func_decl(const c2ir::Module& M, const c2ir::Decl& D,
     if (id_valid(M.stmts, D.body)) {
       write_stmt(M, D.body, os, 0);
     } else {
-      os << "{ /* no body */ }\n";
+      os << "{\n}\n";
     }
   } else {
     os << ";\n";

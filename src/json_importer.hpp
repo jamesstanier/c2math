@@ -312,10 +312,18 @@ inline bool read_module_json(std::istream& is, c2ir::Module& M, std::string* err
         }
         if (const JValue* jva = jt.find("varargs")){ bool b; if(!to_bool(*jva,b)){ if(error_out) *error_out="varargs not bool"; return false; } T.varargs=b; }
       } else if (T.kind == c2ir::TypeKind::Qualified) {
-        const JValue* jb = jt.find("base"); int b=0; if(!jb||!to_int(*jb,b)){ if(error_out) *error_out="qualified missing base"; return false; } T.base=b;
+        const JValue* jb = jt.find("base"); 
+        int b=0; 
+        if(!jb||!to_int(*jb,b)){ if(error_out) *error_out="qualified missing base"; return false; } 
+        T.base=b;
         if (const JValue* jq = jt.find("quals")) {
           if (!jq->isArr()) { if(error_out) *error_out="quals not array"; return false; }
-          uint8_t mask=0; for (const auto& qv: jq->arr){ if(!qv.isStr()){ if(error_out) *error_out="qual not string"; return false; } if(qv.str=="const") mask|=1; else if(qv.str=="volatile") mask|=2; }
+          uint8_t mask=0; 
+          for (const auto& qv: jq->arr){ 
+            if(!qv.isStr()){ if(error_out) *error_out="qual not string"; return false; } 
+            if(qv.str=="const") mask|=1; 
+            else if(qv.str=="volatile") mask|=2; 
+          }
           T.quals=mask;
         }
       } else if (T.kind == c2ir::TypeKind::Array) {

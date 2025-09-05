@@ -206,6 +206,38 @@ struct Module {
           for (size_t j=0;j<t.params.size();++j) { if (j) os << ","; os << "t#" << t.params[j]; }
           os << "], varargs=" << (t.varargs?"true":"false") << ")";
           break;
+        case TypeKind::Qualified: {
+          os << "qual(base=t#" << t.base;
+          if (t.quals & 1) os << ", const";
+          if (t.quals & 2) os << ", volatile";
+          os << ")";
+          break;
+        }
+        case TypeKind::Array:
+          os << "array(elem=t#" << t.elem << ", count=" << t.count << ")";
+          break;
+        case TypeKind::Record: {
+          os << (t.is_union ? "union " : "struct ") << t.tag << " {";
+          for (size_t j=0;j<t.fields.size();++j) {
+            const auto& f = t.fields[j];
+            if (j) os << ", ";
+            os << f.name << ":t#" << f.type;
+            if (f.bit_width >= 0) os << ":" << f.bit_width;
+          }
+          os << " }";
+          break;
+        }
+        case TypeKind::Enum: {
+          os << "enum " << t.enum_tag << " {";
+          for (size_t j=0;j<t.enumerators.size();++j) {
+            const auto& e = t.enumerators[j];
+            if (j) os << ", ";
+            os << e.name;
+            if (e.has_value) os << "=" << e.value;
+          }
+          os << " }";
+          break;
+        }
       }
       os << "\n";
     }

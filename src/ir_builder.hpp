@@ -67,6 +67,24 @@ public:
     return true;
   }
 
+  // Ensure standalone tag definitions are captured even if never referenced.
+  bool VisitRecordDecl(clang::RecordDecl* RD) {
+    // Only materialize complete definitions (skip forward decls).
+    if (!RD->isCompleteDefinition()) return true;
+    // Map this tag into a Type (with fields/bitfields).
+    clang::QualType QT(RD->getTypeForDecl(), 0);
+    (void)mapType(QT);  // inserts a Record type into M.types
+    return true;
+  }
+
+  bool VisitEnumDecl(clang::EnumDecl* ED) {
+    // Enums are “complete” when defined; still harmless to gate.
+    if (!ED->isCompleteDefinition()) return true;
+    clang::QualType QT(ED->getTypeForDecl(), 0);
+    (void)mapType(QT);  // inserts an Enum type into M.types
+    return true;
+  }
+
   bool TraverseFunctionDecl(clang::FunctionDecl* FD) {
     // Create func decl
     Decl D;
@@ -233,14 +251,31 @@ private:
 
   // ---- Type mapper (subset; extend per FR-009)
   TypeId mapType(clang::QualType QT) {
-    QT = QT.getCanonicalType();
+    // pull off top-level cv
+    const bool isC = QT.isConstQualified();
+    const bool isV = QT.isVolatileQualified();
+    clang::QualType Unqual = QT.getUnqualifiedType();
 
-    // Top-level cv-qualifiers
-    if (QT.isConstQualified() || QT.isVolatileQualified()) {
-      Type T; T.kind = TypeKind::Qualified; T.base = mapType(QT.getUnqualifiedType());
-      uint8_t q=0; if (QT.isConstQualified()) q|=1; if (QT.isVolatileQualified()) q|=2; T.quals=q;
-      return M.make(T);
+    // --- ENUMS: handle BEFORE canonicalization (canonical enum == underlying int)
+    if (Unqual->isEnumeralType()) {
+      const auto* ET = Unqual->getAs<clang::EnumType>();
+      const auto* ED = ET->getDecl();
+      Type T; T.kind = TypeKind::Enum;
+      T.enum_tag = ED->getNameAsString();
+      if (!ED->getIntegerType().isNull()) T.enum_underlying = mapType(ED->getIntegerType());
+      for (const auto* ECD : ED->enumerators()) {
+        Type::Enumerator en; en.name = ECD->getNameAsString();
+        en.value = (long long)ECD->getInitVal().getSExtValue();
+        en.has_value = true;
+        T.enumerators.push_back(en);
+      }
+      TypeId baseId = M.make(T);
+      if (isC || isV) { Type Q; Q.kind=TypeKind::Qualified; Q.base=baseId; Q.quals=(isC?1:0)|(isV?2:0); return M.make(Q); }
+      return baseId;
     }
+
+    // everything else can be canonical
+    QT = Unqual.getCanonicalType();
 
     if (QT->isVoidType())    return tVoid;
     if (QT->isBooleanType()) return tBool;
@@ -295,27 +330,12 @@ private:
       }
       return M.make(T);
     }
-
-    // Enums
-    if (QT->isEnumeralType()) {
-      const clang::EnumType* ET = QT->getAs<clang::EnumType>();
-      const clang::EnumDecl* ED = ET->getDecl();
-      Type T; T.kind = TypeKind::Enum;
-      T.enum_tag = ED->getNameAsString();
-      if (!ED->getIntegerType().isNull()) {
-        T.enum_underlying = mapType(ED->getIntegerType());
-      }
-      for (const auto* ECD : ED->enumerators()) {
-        Type::Enumerator en; en.name = ECD->getNameAsString();
-        en.value = (long long)ECD->getInitVal().getSExtValue();
-        en.has_value = true;
-        T.enumerators.push_back(en);
-      }
-      return M.make(T);
-    }
+    // (enums handled above)
 
     // Fallback
-    return M.makeBuiltin(TypeKind::Int);
+    TypeId out = M.makeBuiltin(TypeKind::Int);
+    if (isC || isV) { Type Q; Q.kind=TypeKind::Qualified; Q.base=out; Q.quals=(isC?1:0)|(isV?2:0); return M.make(Q); }
+    return out;
   }
 
   // Map Clang linkage → our IR linkage using modern API (works across versions)
