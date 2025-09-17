@@ -26,3 +26,4 @@ float *mk(void) {
 
 int log_msg(const char *fmt, ...) {
 }
+

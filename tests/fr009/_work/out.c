@@ -13,17 +13,17 @@ struct S {
   int *p;
 };
 
-typedef int (*cmp_t)(void *, void *);
+typedef int (*cmp_t)(const void *, const void *);
 
-static int *gp;
+static const int *gp;
 char buf[16];
 
-int sort(int (*cmp)(void *, void *), void *arr, int n) {
+int sort(int (*cmp)(const void *, const void *), void *arr, int n) {
 }
 
 float *mk(void) {
 }
 
-int log_msg(char *fmt, ...) {
+int log_msg(const char *fmt, ...) {
 }
 

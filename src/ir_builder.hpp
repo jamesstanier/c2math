@@ -251,91 +251,147 @@ private:
 
   // ---- Type mapper (subset; extend per FR-009)
   TypeId mapType(clang::QualType QT) {
-    // pull off top-level cv
-    const bool isC = QT.isConstQualified();
-    const bool isV = QT.isVolatileQualified();
+    // 1) Peel off top-level cv qualifiers
+    bool topConst    = QT.isConstQualified();
+    bool topVolatile = QT.isVolatileQualified();
     clang::QualType Unqual = QT.getUnqualifiedType();
 
-    // --- ENUMS: handle BEFORE canonicalization (canonical enum == underlying int)
+    // 2) Enums must be handled *before* canonicalization (so enum tag isn’t lost)
     if (Unqual->isEnumeralType()) {
       const auto* ET = Unqual->getAs<clang::EnumType>();
       const auto* ED = ET->getDecl();
-      Type T; T.kind = TypeKind::Enum;
+      Type T;
+      T.kind = TypeKind::Enum;
       T.enum_tag = ED->getNameAsString();
-      if (!ED->getIntegerType().isNull()) T.enum_underlying = mapType(ED->getIntegerType());
+      if (!ED->getIntegerType().isNull()) {
+        T.enum_underlying = mapType(ED->getIntegerType());
+      }
       for (const auto* ECD : ED->enumerators()) {
-        Type::Enumerator en; en.name = ECD->getNameAsString();
+        Type::Enumerator en;
+        en.name = ECD->getNameAsString();
         en.value = (long long)ECD->getInitVal().getSExtValue();
         en.has_value = true;
         T.enumerators.push_back(en);
       }
-      TypeId baseId = M.make(T);
-      if (isC || isV) { Type Q; Q.kind=TypeKind::Qualified; Q.base=baseId; Q.quals=(isC?1:0)|(isV?2:0); return M.make(Q); }
-      return baseId;
+      TypeId inner = M.make(T);
+      if (topConst || topVolatile) {
+        Type Q;
+        Q.kind = TypeKind::Qualified;
+        Q.base = inner;
+        Q.quals = (topConst ? 1 : 0) | (topVolatile ? 2 : 0);
+        return M.make(Q);
+      }
+      return inner;
     }
 
-    // everything else can be canonical
+    // 3) Now canonicalize the unqualified type
     QT = Unqual.getCanonicalType();
 
-    if (QT->isVoidType())    return tVoid;
-    if (QT->isBooleanType()) return tBool;
-    if (QT->isCharType())    return tChar;
-    if (QT->isIntegerType()) {
-      if ( QT->isUnsignedIntegerType() ) return M.makeBuiltin(TypeKind::UInt);
-      return tInt;
-    }
-    if (QT->isSpecificBuiltinType(clang::BuiltinType::Float))  return tFloat;
-    if (QT->isSpecificBuiltinType(clang::BuiltinType::Double)) return tDouble;
-
+    // 4) Map other kinds (array, pointer, function, record)
+    // Array
     if (QT->isArrayType()) {
-      const clang::ArrayType* AT = llvm::dyn_cast<clang::ArrayType>(QT.getTypePtr());
-      Type T; T.kind = TypeKind::Array; T.elem = mapType(AT->getElementType());
+      const auto* AT = llvm::dyn_cast<clang::ArrayType>(QT.getTypePtr());
+      Type T;
+      T.kind = TypeKind::Array;
+      T.elem = mapType(AT->getElementType()); // recurse, child quals handled in recursive calls
       if (const auto* CAT = llvm::dyn_cast<clang::ConstantArrayType>(AT)) {
         T.count = (long long)CAT->getSize().getSExtValue();
       } else {
-        T.count = -1; // incomplete/flexible/VLA treated as flexible here
+        T.count = -1;  // flexible / incomplete
       }
-      return M.make(T);
+      TypeId inner = M.make(T);
+      if (topConst || topVolatile) {
+        Type Q; Q.kind = TypeKind::Qualified; Q.base = inner;
+        Q.quals = (topConst ? 1 : 0) | (topVolatile ? 2 : 0);
+        return M.make(Q);
+      }
+      return inner;
     }
 
+    // Pointer
     if (QT->isPointerType()) {
-      Type T; T.kind = TypeKind::Pointer; T.pointee = mapType(QT->getPointeeType());
-      return M.make(T);
+      Type T;
+      T.kind = TypeKind::Pointer;
+      T.pointee = mapType(QT->getPointeeType());
+      TypeId inner = M.make(T);
+      if (topConst || topVolatile) {
+        Type Q; Q.kind = TypeKind::Qualified; Q.base = inner;
+        Q.quals = (topConst ? 1 : 0) | (topVolatile ? 2 : 0);
+        return M.make(Q);
+      }
+      return inner;
     }
 
+    // Function
     if (const clang::FunctionType* FT = QT->getAs<clang::FunctionType>()) {
       const auto* FPT = llvm::dyn_cast<clang::FunctionProtoType>(FT);
-      Type T; T.kind = TypeKind::Function; T.ret = mapType(FT->getReturnType());
+      Type T;
+      T.kind = TypeKind::Function;
+      T.ret = mapType(FT->getReturnType());
       if (FPT) {
-        for (clang::QualType P : FPT->param_types()) T.params.push_back(mapType(P));
+        for (clang::QualType P : FPT->param_types()) {
+          T.params.push_back(mapType(P));
+        }
         T.varargs = FPT->isVariadic();
       }
-      return M.make(T);
+      TypeId inner = M.make(T);
+      if (topConst || topVolatile) {
+        Type Q; Q.kind = TypeKind::Qualified; Q.base = inner;
+        Q.quals = (topConst ? 1 : 0) | (topVolatile ? 2 : 0);
+        return M.make(Q);
+      }
+      return inner;
     }
 
-    // Records (struct/union)
+    // Record (struct / union)
     if (QT->isRecordType()) {
-      const clang::RecordType* RT = QT->getAs<clang::RecordType>();
-      const clang::RecordDecl* RD = RT->getDecl();
-      Type T; T.kind = TypeKind::Record;
+      const auto* RT = QT->getAs<clang::RecordType>();
+      const auto* RD = RT->getDecl();
+      Type T;
+      T.kind = TypeKind::Record;
       T.is_union = RD->isUnion();
       T.tag = RD->getNameAsString();
       T.is_complete = RD->isCompleteDefinition();
       if (T.is_complete) {
-        for (const auto* F : RD->fields()) {
-          Type::Field f; f.name = F->getNameAsString(); f.type = mapType(F->getType());
-          if (F->isBitField()) f.bit_width = F->getBitWidthValue(Ctx);
+        for (const auto* Fld : RD->fields()) {
+          Type::Field f;
+          f.name = Fld->getNameAsString();
+          f.type = mapType(Fld->getType());
+          if (Fld->isBitField())
+            f.bit_width = Fld->getBitWidthValue(Ctx);
           T.fields.push_back(f);
         }
       }
-      return M.make(T);
+      TypeId inner = M.make(T);
+      if (topConst || topVolatile) {
+        Type Q; Q.kind = TypeKind::Qualified; Q.base = inner;
+        Q.quals = (topConst ? 1 : 0) | (topVolatile ? 2 : 0);
+        return M.make(Q);
+      }
+      return inner;
     }
-    // (enums handled above)
 
-    // Fallback
-    TypeId out = M.makeBuiltin(TypeKind::Int);
-    if (isC || isV) { Type Q; Q.kind=TypeKind::Qualified; Q.base=out; Q.quals=(isC?1:0)|(isV?2:0); return M.make(Q); }
-    return out;
+    // 5) Builtins fallback
+    TypeId inner;
+    if (QT->isVoidType()) inner = tVoid;
+    else if (QT->isBooleanType()) inner = tBool;
+    else if (QT->isCharType()) inner = tChar;
+    else if (QT->isIntegerType()) {
+      if (QT->isUnsignedIntegerType()) inner = M.makeBuiltin(TypeKind::UInt);
+      else inner = tInt;
+    }
+    else if (QT->isSpecificBuiltinType(clang::BuiltinType::Float)) inner = tFloat;
+    else if (QT->isSpecificBuiltinType(clang::BuiltinType::Double)) inner = tDouble;
+    else inner = tInt;
+
+    if (topConst || topVolatile) {
+      Type Q;
+      Q.kind = TypeKind::Qualified;
+      Q.base = inner;
+      Q.quals = (topConst ? 1 : 0) | (topVolatile ? 2 : 0);
+      return M.make(Q);
+    }
+    return inner;
   }
 
   // Map Clang linkage → our IR linkage using modern API (works across versions)
